@@ -1,14 +1,15 @@
 """
-custom_component to support for Rinnai Touch thermostats - Evap Only.
+custom_component to support for Rinnai Touch thermostats - Evap Cooling Only.
  
 The following configuration.yaml entries are required:
 
 climate:
   - platform: rinnai_touch_climate
-    name: Rinnai Touch Thermostat
+    name: Rinnai Evap Cooler
     host: <IP_ADDRESS>
     port: 27847
-    scan_interval: 10
+    scan_interval: 1800
+    temperature_sensor: <TEMP_SENSOR_ENTITY>
 
 logger:
   logs:
