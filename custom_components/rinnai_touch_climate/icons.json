@@ -1,0 +1,22 @@
+{
+  "entity": {
+    "switch": {
+      "pump": {
+        "default": "mdi:water-pump-off",
+        "state": {
+          "on": "mdi:water-pump"
+        }
+      }
+    },
+    "sensor": {
+      "connection": {
+        "default": "mdi:lan-disconnect",
+        "state": {
+          "connected": "mdi:lan-connect",
+          "waiting_for_module": "mdi:lan-pending",
+          "connecting": "mdi:lan-pending"
+        }
+      }
+    }
+  }
+}
