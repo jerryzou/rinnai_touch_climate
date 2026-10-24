@@ -14,6 +14,7 @@ from homeassistant.components.climate import (
     ATTR_HVAC_MODE,
     ClimateEntity,
     ClimateEntityFeature,
+    HVACAction,
     HVACMode,
 )
 from homeassistant.const import (
@@ -98,6 +99,22 @@ class RinnaiEvapClimate(RinnaiTouchEntity, ClimateEntity):
         if state.power is None or state.auto is None:
             return None
         return HVACMode.COOL if state.auto else HVACMode.FAN_ONLY
+
+    @property
+    def hvac_action(self) -> HVACAction | None:
+        """Return what the cooler is doing, as the Homebridge plugin reports it.
+
+        Auto counts as cooling; in Manual the water pump means cooling and
+        the fan alone means fan.
+        """
+        state = self._state
+        if state.power is False:
+            return HVACAction.OFF
+        if state.power is None or state.auto is None:
+            return None
+        if state.auto or state.pump:
+            return HVACAction.COOLING
+        return HVACAction.FAN if state.fan else HVACAction.IDLE
 
     @property
     def target_temperature(self) -> float | None:

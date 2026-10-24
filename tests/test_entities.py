@@ -63,6 +63,28 @@ async def test_initial_state(
     assert hass.states.get(CONNECTION).state == "connected"
 
 
+async def test_hvac_action(
+    hass: HomeAssistant, setup_integration: MockConfigEntry, module: FakeModule
+) -> None:
+    """Manual with the pump is cooling, the fan alone is fan, Auto is cooling."""
+    assert hass.states.get(CLIMATE).attributes["hvac_action"] == "cooling"
+
+    await hass.services.async_call(
+        "switch", SERVICE_TURN_OFF, {ATTR_ENTITY_ID: PUMP}, blocking=True
+    )
+    await hass.async_block_till_done()
+    expected = "fan" if _gso(module)["FS"] == "N" else "idle"
+    assert hass.states.get(CLIMATE).attributes["hvac_action"] == expected
+
+    await _climate(hass, SERVICE_SET_HVAC_MODE, **{ATTR_HVAC_MODE: HVACMode.COOL})
+    await hass.async_block_till_done()
+    assert hass.states.get(CLIMATE).attributes["hvac_action"] == "cooling"
+
+    await _climate(hass, SERVICE_SET_HVAC_MODE, **{ATTR_HVAC_MODE: HVACMode.OFF})
+    await hass.async_block_till_done()
+    assert hass.states.get(CLIMATE).attributes["hvac_action"] == "off"
+
+
 async def test_cool_sets_auto_and_comfort(
     hass: HomeAssistant, setup_integration: MockConfigEntry, module: FakeModule
 ) -> None:
