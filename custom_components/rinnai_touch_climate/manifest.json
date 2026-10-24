@@ -1,0 +1,13 @@
+{
+  "domain": "rinnai_touch_climate",
+  "name": "Rinnai Touch Climate",
+  "codeowners": ["@jerryzou"],
+  "config_flow": true,
+  "documentation": "https://github.com/jerryzou/rinnai_touch_climate",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/jerryzou/rinnai_touch_climate/issues",
+  "loggers": ["custom_components.rinnai_touch_climate"],
+  "requirements": [],
+  "version": "1.0.0"
+}

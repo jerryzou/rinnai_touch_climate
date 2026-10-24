@@ -1,0 +1,89 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Rinnai Touch WiFi module",
+        "description": "Listened for module broadcasts and found: {found}.\n\nThe module accepts only one connection and stays silent while another app (such as Homebridge or the Rinnai app) is connected. If nothing was found, stop that app or enter the module's IP address yourself.",
+        "data": {
+          "host": "Host"
+        },
+        "data_description": {
+          "host": "IP address of the Rinnai Touch WiFi module (N-BW2). Give it a fixed address in your router."
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "This module is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Rinnai Touch options",
+        "data": {
+          "temperature_sensor": "Temperature sensor"
+        },
+        "data_description": {
+          "temperature_sensor": "Sensor (in °C) shown as the current temperature. Leave empty to use the controller's own reading, if it has one."
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "fault": {
+        "name": "Fault",
+        "state_attributes": {
+          "appliance": {
+            "name": "Appliance",
+            "state": {
+              "heater": "Heater",
+              "add_on_cooler": "Add-on cooler",
+              "evaporative_cooler": "Evaporative cooler",
+              "reverse_cycle": "Reverse cycle",
+              "controller": "Controller"
+            }
+          },
+          "unit": {
+            "name": "Unit"
+          },
+          "severity": {
+            "name": "Severity",
+            "state": {
+              "minor": "Minor",
+              "busy": "Busy",
+              "lockout": "Lockout"
+            }
+          },
+          "code": {
+            "name": "Code"
+          }
+        }
+      }
+    },
+    "sensor": {
+      "connection": {
+        "name": "Connection",
+        "state": {
+          "disconnected": "Disconnected",
+          "waiting_for_module": "Waiting for module",
+          "connecting": "Connecting",
+          "connected": "Connected"
+        }
+      }
+    },
+    "switch": {
+      "pump": {
+        "name": "Pump"
+      }
+    }
+  },
+  "exceptions": {
+    "not_connected": {
+      "message": "The Rinnai Touch module is not connected."
+    },
+    "command_failed": {
+      "message": "The Rinnai Touch module did not carry out the command: {error}"
+    }
+  }
+}
