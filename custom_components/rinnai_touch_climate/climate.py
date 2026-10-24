@@ -8,7 +8,8 @@ set outside Manual, is kept and applied when that mode is next selected.
 
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import asdict, dataclass
+from typing import Any, Self
 
 from homeassistant.components.climate import (
     ATTR_HVAC_MODE,
@@ -27,6 +28,7 @@ from homeassistant.const import (
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.restore_state import ExtraStoredData, RestoreEntity
 
 from . import RinnaiTouchConfigEntry
 from .const import CONF_TEMPERATURE_SENSOR
@@ -35,6 +37,44 @@ from .protocol import evap
 from .protocol.evap import COMFORT_MAX, COMFORT_MIN, FAN_SPEED_MAX, FAN_SPEED_MIN
 
 FAN_MODES = [str(speed) for speed in range(FAN_SPEED_MIN, FAN_SPEED_MAX + 1)]
+
+
+@dataclass(slots=True)
+class StoredValues(ExtraStoredData):
+    """The remembered values, kept across restarts.
+
+    The module reports neither the comfort level nor the fan speed while it
+    is off, so without these the entity shows none after a restart.
+    """
+
+    comfort: int | None = None
+    fan_speed: int | None = None
+    pending_comfort: int | None = None
+    pending_fan_speed: int | None = None
+    last_on_mode: str = HVACMode.COOL
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the values to store."""
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Read stored values, dropping any that are out of range."""
+
+        def level(key: str, low: int, high: int) -> int | None:
+            value = data.get(key)
+            return value if isinstance(value, int) and low <= value <= high else None
+
+        mode = data.get("last_on_mode")
+        return cls(
+            comfort=level("comfort", COMFORT_MIN, COMFORT_MAX),
+            fan_speed=level("fan_speed", FAN_SPEED_MIN, FAN_SPEED_MAX),
+            pending_comfort=level("pending_comfort", COMFORT_MIN, COMFORT_MAX),
+            pending_fan_speed=level("pending_fan_speed", FAN_SPEED_MIN, FAN_SPEED_MAX),
+            last_on_mode=mode
+            if mode in (HVACMode.COOL, HVACMode.FAN_ONLY)
+            else HVACMode.COOL,
+        )
 
 
 async def async_setup_entry(
@@ -48,7 +88,7 @@ async def async_setup_entry(
     async_add_entities([RinnaiEvapClimate(entry)])
 
 
-class RinnaiEvapClimate(RinnaiTouchEntity, ClimateEntity):
+class RinnaiEvapClimate(RinnaiTouchEntity, ClimateEntity, RestoreEntity):
     """The evaporative cooler."""
 
     _attr_name = None
@@ -81,10 +121,28 @@ class RinnaiEvapClimate(RinnaiTouchEntity, ClimateEntity):
     async def async_added_to_hass(self) -> None:
         """Follow the status stream and the optional temperature sensor."""
         await super().async_added_to_hass()
+        if (data := await self.async_get_last_extra_data()) is not None:
+            stored = StoredValues.from_dict(data.as_dict())
+            self._comfort = stored.comfort
+            self._fan_speed = stored.fan_speed
+            self._pending_comfort = stored.pending_comfort
+            self._pending_fan_speed = stored.pending_fan_speed
+            self._last_on_mode = HVACMode(stored.last_on_mode)
         self.async_on_remove(self._entry.add_update_listener(self._options_updated))
         self.async_on_remove(self._stop_sensor)
         self._track_sensor()
         self._read_status()
+
+    @property
+    def extra_restore_state_data(self) -> StoredValues:
+        """Remember the values the module does not report while off."""
+        return StoredValues(
+            self._comfort,
+            self._fan_speed,
+            self._pending_comfort,
+            self._pending_fan_speed,
+            self._last_on_mode,
+        )
 
     @property
     def _state(self) -> evap.EvapState:

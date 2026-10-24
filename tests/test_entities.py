@@ -20,10 +20,13 @@ from homeassistant.const import (
     STATE_OFF,
     STATE_ON,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 from homeassistant.exceptions import HomeAssistantError
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    mock_restore_cache_with_extra_data,
+)
 
 from custom_components.rinnai_touch_climate.const import CONF_TEMPERATURE_SENSOR
 
@@ -234,3 +237,72 @@ async def test_external_temperature_sensor(
     hass.states.async_set("sensor.hall", "unavailable")
     await hass.async_block_till_done()
     assert hass.states.get(CLIMATE).attributes[ATTR_CURRENT_TEMPERATURE] is None
+
+
+async def test_values_restored_while_off(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    module: FakeModule,
+    fast_client: None,
+) -> None:
+    """After a restart with the cooler off, the last values come back.
+
+    The module reports no comfort level or fan speed while it is off.
+    """
+    gso = _gso(module)
+    gso["SW"] = "F"
+    gso.pop("FL")
+    mock_restore_cache_with_extra_data(
+        hass,
+        [
+            (
+                State(CLIMATE, HVACMode.OFF),
+                {
+                    "comfort": 23,
+                    "fan_speed": 7,
+                    "pending_comfort": 26,
+                    "pending_fan_speed": None,
+                    "last_on_mode": "fan_only",
+                },
+            )
+        ],
+    )
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await wait_until(lambda: config_entry.runtime_data.connected)
+    await hass.async_block_till_done()
+
+    state = hass.states.get(CLIMATE)
+    assert state.state == HVACMode.OFF
+    assert state.attributes[ATTR_TEMPERATURE] == 26
+    assert state.attributes[ATTR_FAN_MODE] == "7"
+
+    # turn_on goes back to the last mode, Manual.
+    await _climate(hass, SERVICE_TURN_ON)
+    assert (gso["SW"], gso["OP"]) == ("N", "M")
+    # The comfort level set while off is still waiting for Auto.
+    await _climate(hass, SERVICE_SET_HVAC_MODE, **{ATTR_HVAC_MODE: HVACMode.COOL})
+    assert gso["SP"] == "26"
+    await hass.config_entries.async_unload(config_entry.entry_id)
+
+
+async def test_out_of_range_stored_values_ignored(
+    hass: HomeAssistant,
+    config_entry: MockConfigEntry,
+    module: FakeModule,
+    fast_client: None,
+) -> None:
+    """Stored values outside 19-34 / 1-16 are dropped."""
+    _gso(module)["SW"] = "F"
+    _gso(module).pop("FL")
+    mock_restore_cache_with_extra_data(
+        hass,
+        [(State(CLIMATE, HVACMode.OFF), {"comfort": 50, "fan_speed": 0})],
+    )
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await wait_until(lambda: config_entry.runtime_data.connected)
+    await hass.async_block_till_done()
+
+    state = hass.states.get(CLIMATE)
+    assert state.attributes[ATTR_TEMPERATURE] is None
+    assert state.attributes[ATTR_FAN_MODE] is None
+    await hass.config_entries.async_unload(config_entry.entry_id)
