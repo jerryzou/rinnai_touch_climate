@@ -31,6 +31,7 @@ FAST = Timing(
     keepalive_interval=0.2,
     command_timeout=0.5,
     close_timeout=0.5,
+    settle_delay=0.2,
 )
 
 

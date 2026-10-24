@@ -14,6 +14,13 @@ connected for weeks at a time:
 * Send one command at a time, numbered after the module's last sequence
   number, and confirm it against the status stream (10 s, up to 3 tries).
 * Send a bare sequence number as a keepalive every 60 s.
+
+One thing the plugin never runs into, because it only reconnects after a
+process restart: the module broadcasts again almost as soon as a client
+closes, but refuses TCP connections from that client's address for
+minutes if it reconnects within about a second (seen on a real module on
+an integration reload). So every connect first waits until 10 s have
+passed since this process last closed a connection to that module.
 """
 
 from __future__ import annotations
@@ -27,6 +34,7 @@ import ipaddress
 import json
 import logging
 import socket
+import time
 
 from .discovery import UDP_PORT, ModuleAddress, wait_for_module
 from .framing import Frame, FrameParser
@@ -72,6 +80,12 @@ class Timing:
     command_timeout: float = 10.0
     command_attempts: int = 3
     close_timeout: float = 2.0
+    settle_delay: float = 10.0
+
+
+# Monotonic time each module's last connection from this process was closed,
+# shared across clients so a reloaded entry waits for the old one's close.
+_last_closed: dict[str, float] = {}
 
 
 def next_sequence(last: int) -> int:
@@ -186,6 +200,15 @@ class RinnaiTouchClient:
         """
         host = await self._resolve()
         self._set_state(ConnectionState.WAITING)
+        closed = _last_closed.get(host)
+        if closed is not None:
+            wait = closed + self._timing.settle_delay - time.monotonic()
+            if wait > 0:
+                _LOGGER.debug(
+                    "Waiting %.1f s for the module to release the last connection",
+                    wait,
+                )
+                await asyncio.sleep(wait)
         while True:
             try:
                 return await wait_for_module(
@@ -264,6 +287,7 @@ class RinnaiTouchClient:
                     await writer.wait_closed()
             except (OSError, TimeoutError):
                 pass
+            _last_closed[address.host] = time.monotonic()
 
     def _connected(self) -> None:
         self.connection_count += 1

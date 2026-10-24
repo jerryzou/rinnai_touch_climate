@@ -147,6 +147,23 @@ async def test_reconnects_after_module_drops_client(
     assert module.rejected == 0
 
 
+async def test_new_client_waits_after_a_close(
+    client: RinnaiTouchClient, module: FakeModule, make_client
+) -> None:
+    """A reload's new client waits out the settle delay after the old close.
+
+    The real module refuses an address that reconnects within about a
+    second, although it is already broadcasting again.
+    """
+    await client.stop()
+    loop = asyncio.get_running_loop()
+    closed = loop.time()
+    second = make_client()
+    await wait_until(lambda: second.connected)
+    assert loop.time() - closed >= FAST.settle_delay * 0.9
+    assert module.rejected == 0
+
+
 async def test_split_frames_and_garbage(make_module, make_client) -> None:
     """Status split into many segments with junk in between still parses."""
     module = await make_module(segments=11, garbage=True)
