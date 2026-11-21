@@ -23,7 +23,7 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant, State
 from homeassistant.exceptions import HomeAssistantError
 import pytest
-from pytest_homeassistant_custom_component.common import (
+from pytest_homeassistant.common import (
     MockConfigEntry,
     mock_restore_cache_with_extra_data,
 )
@@ -306,3 +306,21 @@ async def test_out_of_range_stored_values_ignored(
     assert state.attributes[ATTR_TEMPERATURE] is None
     assert state.attributes[ATTR_FAN_MODE] is None
     await hass.config_entries.async_unload(config_entry.entry_id)
+
+
+def test_native_temperature_api() -> None:
+    """Home Assistant 2026.11+ sees only the native temperature names.
+
+    The old names are deprecated there (removed in 2027.11) and log a
+    warning when a subclass defines them.
+    """
+    from homeassistant.components.climate import ClimateEntity
+
+    from custom_components.rinnai_touch_climate.climate import RinnaiEvapClimate
+
+    old = {"_attr_temperature_unit", "target_temperature", "current_temperature"}
+    defined = old & set(vars(RinnaiEvapClimate))
+    if hasattr(ClimateEntity, "native_temperature_unit"):
+        assert not defined
+    else:
+        assert defined == old

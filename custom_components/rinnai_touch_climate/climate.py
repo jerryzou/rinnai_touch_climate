@@ -98,7 +98,7 @@ class RinnaiEvapClimate(RinnaiTouchEntity, ClimateEntity, RestoreEntity):
     _attr_max_temp = COMFORT_MAX
     _attr_target_temperature_step = 1
     _attr_precision = PRECISION_TENTHS
-    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_supported_features = (
         ClimateEntityFeature.TARGET_TEMPERATURE
         | ClimateEntityFeature.FAN_MODE
@@ -175,7 +175,7 @@ class RinnaiEvapClimate(RinnaiTouchEntity, ClimateEntity, RestoreEntity):
         return HVACAction.FAN if state.fan else HVACAction.IDLE
 
     @property
-    def target_temperature(self) -> float | None:
+    def native_target_temperature(self) -> float | None:
         """Return the comfort level."""
         level = self._pending_comfort or self._comfort
         return None if level is None else float(level)
@@ -187,11 +187,18 @@ class RinnaiEvapClimate(RinnaiTouchEntity, ClimateEntity, RestoreEntity):
         return None if speed is None else str(speed)
 
     @property
-    def current_temperature(self) -> float | None:
+    def native_current_temperature(self) -> float | None:
         """Return the chosen sensor's temperature, else the controller's."""
         if self._entry.options.get(CONF_TEMPERATURE_SENSOR):
             return self._sensor_temperature
         return self._state.temperature
+
+    if not hasattr(ClimateEntity, "native_temperature_unit"):
+        # Home Assistant before 2026.11 only reads the old names. Newer
+        # versions warn about them, so define them only where needed.
+        _attr_temperature_unit = _attr_native_temperature_unit
+        target_temperature = native_target_temperature
+        current_temperature = native_current_temperature
 
     def _handle_update(self) -> None:
         self._read_status()
